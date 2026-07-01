@@ -219,12 +219,13 @@ static void run_boot_sequence(void) {
 // input pump (render thread, before each frame)
 // ---------------------------------------------------------------------------
 
-// Fusion button bitmask (verified against ProcessJoypadController; see Track D)
+// Fusion button bitmask. ProcessJoypadController maps these four bits to the
+// positional Controls_Pad* inputs; game actions are assigned from there.
 enum {
   TFA_L2    = 0x0001, TFA_R2     = 0x0002,
   TFA_L1    = 0x0004, TFA_R1     = 0x0008,
-  TFA_TAG   = 0x0010, TFA_SPECIAL= 0x0020,
-  TFA_JUMP  = 0x0040, TFA_ACTION = 0x0080,
+  TFA_SOUTH = 0x0010, TFA_EAST   = 0x0020,
+  TFA_WEST  = 0x0040, TFA_NORTH  = 0x0080,
   TFA_L3    = 0x0200, TFA_R3     = 0x0400,
   TFA_START = 0x0800,
 };
@@ -250,12 +251,12 @@ static void update_gamepad(void) {
   const u64 down = padGetButtons(&pad);
 
   int mask = 0;
-  // face buttons: engine uses A=jump, B=special, X=action, Y=tag; map to the
-  // Nintendo physical positions (Switch B is the bottom button -> jump).
-  if (down & HidNpadButton_B)      mask |= TFA_JUMP;
-  if (down & HidNpadButton_A)      mask |= TFA_SPECIAL;
-  if (down & HidNpadButton_Y)      mask |= TFA_ACTION;
-  if (down & HidNpadButton_X)      mask |= TFA_TAG;
+  // Keep physical positions consistent between the engine and Switch:
+  // B=south (jump), A=east, Y=west (attack), X=north (character switch).
+  if (down & HidNpadButton_B)      mask |= TFA_SOUTH;
+  if (down & HidNpadButton_A)      mask |= TFA_EAST;
+  if (down & HidNpadButton_Y)      mask |= TFA_WEST;
+  if (down & HidNpadButton_X)      mask |= TFA_NORTH;
   if (down & HidNpadButton_L)      mask |= TFA_L1;
   if (down & HidNpadButton_R)      mask |= TFA_R1;
   if (down & HidNpadButton_ZL)     mask |= TFA_L2;
