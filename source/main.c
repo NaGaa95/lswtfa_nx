@@ -19,6 +19,7 @@
  * of the MIT license.  See the LICENSE file for details.
  */
 
+#include "saltynx.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -370,6 +371,8 @@ static void monitor_fn(void *arg) {
 static Thread g_monitor;
 
 int main(int argc, char *argv[]) {
+  saltynx_start();
+  atexit(saltynx_stop);
   // make the .nro's own folder the cwd, so the OBB, config and saves are found
   // relative to it regardless of how the launcher set the working directory.
   if (argc > 0 && argv[0]) {

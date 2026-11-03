@@ -35,7 +35,6 @@
 #include "../config.h"
 #include "../util.h"
 #include "../hooks.h"
-#include "../fps.h"
 
 // ---------------------------------------------------------------------------
 // wrapper-owned window EGL state
@@ -210,8 +209,7 @@ int egl_bringup(void) {
 
 void egl_present(void) {
   gl_acquire(); // render thread owns the context for the whole frame up to here
-  if (config.show_fps)
-    fps_render();
+
   if (eglSwapBuffers(g_dpy, g_surf) != EGL_TRUE) {
     static int nfail = 0;
     if (nfail++ < 20)

@@ -38,6 +38,9 @@ LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH) -Wl,-Map,$(notdir $*
 
 # SDL2: OpenSL ES audio backend. EGL/GLESv2/glapi/drm_nouveau: mesa/nouveau GL.
 # av*/sw*: ffmpeg (mp4 cutscene decode) + its deps (dav1d/bz2/z).
+# Publish all EGL presentation paths, including guest import tables.
+LDFLAGS += -Wl,--wrap=eglSwapBuffers,--wrap=eglGetProcAddress,--wrap=__libnx_exit
+
 LIBS	:= -lSDL2 \
 	-lavformat -lavcodec -lswscale -lswresample -lavutil -ldav1d -lbz2 -lz \
 	-lEGL -lGLESv2 -lglapi -ldrm_nouveau -lnx -lm

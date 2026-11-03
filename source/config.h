@@ -79,7 +79,6 @@ typedef struct {
   int screen_width;
   int screen_height;
   int language;        // -1 = follow system; else index into the lang table
-  int show_fps;        // 1 = small FPS counter in the top left corner
 } Config;
 
 extern Config config;

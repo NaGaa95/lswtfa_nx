@@ -26,7 +26,7 @@ void patch_game(void);
 // Bring up display + window surface + ES2 context against the default NWindow
 // and make it current on the calling (render) thread. Returns 0 on success.
 int  egl_bringup(void);
-// Present the current frame (optionally draws the FPS counter first).
+// Present the current frame.
 void egl_present(void);
 // Recreate the window surface at a new size (dock/undock) and re-make-current.
 void egl_resize_surface(int w, int h);
