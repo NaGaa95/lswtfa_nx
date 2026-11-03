@@ -20,7 +20,6 @@
  */
 
 #include "saltynx.h"
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -36,6 +35,7 @@
 #include "imports.h"
 #include "jni_fake.h"
 #include "pthr.h"
+#include "controller.h"
 #include "fmv.h"
 
 static void *heap_so_base = NULL;
@@ -140,7 +140,6 @@ static struct {
   void (*setAudioOutputBufferSize)(void *env, void *obj, int frames);
   void (*initAssetManager)(void *env, void *obj, void *mgr);
   void (*controllerSetData)(void *env, void *obj, int dev, int mask, float x, float y);
-  int  (*backButtonPressed)(void *env, void *obj);
   void (*touchDown)(void *env, void *obj, int id, float x, float y, float p);
   void (*touchMove)(void *env, void *obj, int id, float x, float y, float p);
   void (*touchUp)(void *env, void *obj, int id, float x, float y, float p);
@@ -171,7 +170,6 @@ static void resolve_entry_points(void) {
   RESOLVE(setAudioOutputBufferSize, "Java_com_wbgames_LEGOgame_Fusion_nativeSetAudioOutputBufferSize");
   RESOLVE(initAssetManager,         "Java_com_wbgames_LEGOgame_Fusion_nativeInitializeAssetManager");
   RESOLVE(controllerSetData,        "Java_com_wbgames_LEGOgame_Fusion_nativeControllerSetData");
-  RESOLVE(backButtonPressed,        "Java_com_wbgames_LEGOgame_Fusion_nativeBackButtonPressed");
   RESOLVE(touchDown,                "Java_com_wbgames_LEGOgame_Fusion_nativeTouchEventDown");
   RESOLVE(touchMove,                "Java_com_wbgames_LEGOgame_Fusion_nativeTouchEventMove");
   RESOLVE(touchUp,                  "Java_com_wbgames_LEGOgame_Fusion_nativeTouchEventUp");
@@ -220,80 +218,20 @@ static void run_boot_sequence(void) {
 // input pump (render thread, before each frame)
 // ---------------------------------------------------------------------------
 
-// Fusion button bitmask. ProcessJoypadController maps these four bits to the
-// positional Controls_Pad* inputs; game actions are assigned from there.
-enum {
-  TFA_L2    = 0x0001, TFA_R2     = 0x0002,
-  TFA_L1    = 0x0004, TFA_R1     = 0x0008,
-  TFA_SOUTH = 0x0010, TFA_EAST   = 0x0020,
-  TFA_WEST  = 0x0040, TFA_NORTH  = 0x0080,
-  TFA_L3    = 0x0200, TFA_R3     = 0x0400,
-  TFA_START = 0x0800,
-};
-
 static PadState pad;
-static u64 pad_prev = 0;
-
-// Switch sticks are circle-clamped (a full diagonal reads ~0.71 per axis) but
-// the engine expects square axes; remap radially so diagonals reach full speed.
-static void stick_circle_to_square(float *x, float *y) {
-  const float ax = fabsf(*x), ay = fabsf(*y);
-  const float m = (ax > ay) ? ax : ay;
-  if (m < 1e-6f)
-    return;
-  const float s = sqrtf(*x * *x + *y * *y) / m;
-  *x *= s; *y *= s;
-  if (*x > 1.0f) *x = 1.0f; else if (*x < -1.0f) *x = -1.0f;
-  if (*y > 1.0f) *y = 1.0f; else if (*y < -1.0f) *y = -1.0f;
-}
 
 static void update_gamepad(void) {
   padUpdate(&pad);
   const u64 down = padGetButtons(&pad);
-
-  int mask = 0;
-  // Keep physical positions consistent between the engine and Switch:
-  // B=south (jump), A=east, Y=west (attack), X=north (character switch).
-  if (down & HidNpadButton_B)      mask |= TFA_SOUTH;
-  if (down & HidNpadButton_A)      mask |= TFA_EAST;
-  if (down & HidNpadButton_Y)      mask |= TFA_WEST;
-  if (down & HidNpadButton_X)      mask |= TFA_NORTH;
-  if (down & HidNpadButton_L)      mask |= TFA_L1;
-  if (down & HidNpadButton_R)      mask |= TFA_R1;
-  if (down & HidNpadButton_ZL)     mask |= TFA_L2;
-  if (down & HidNpadButton_ZR)     mask |= TFA_R2;
-  if (down & HidNpadButton_StickL) mask |= TFA_L3;
-  if (down & HidNpadButton_StickR) mask |= TFA_R3;
-  if (down & HidNpadButton_Plus)   mask |= TFA_START;
-
-  // left stick: Android axes are right-positive / DOWN-positive; the engine
-  // negates the Y we pass. Switch sticks are right-positive / up-positive, so
-  // feed x as-is and y negated (-> Android down-positive).
-  const float scale = 1.f / 32767.0f;
   const HidAnalogStickState ls = padGetStickPos(&pad, 0);
-  float lx = (float)ls.x * scale;
-  float ly = (float)ls.y * -scale;
-  stick_circle_to_square(&lx, &ly);
-
-  // d-pad drives movement too (LEGO games map it to the stick)
-  if (down & HidNpadButton_Left)  lx = -1.0f;
-  if (down & HidNpadButton_Right) lx =  1.0f;
-  if (down & HidNpadButton_Up)    ly = -1.0f;
-  if (down & HidNpadButton_Down)  ly =  1.0f;
-
-  // NOTE: right stick intentionally unmapped for now. TFA's native input has
-  // only one analog pair (this left stick) + the button mask, and the shoulder
-  // buttons are NOT the camera (mapping the right stick to them triggered
-  // character actions). Correct camera mapping pending (see notes).
+  const HidAnalogStickState rs = padGetStickPos(&pad, 1);
+  TfaControllerFrame frame;
+  tfa_controller_build_frame(down, ls.x, ls.y, rs.x, rs.y, &frame);
+  tfa_controller_publish(&frame);
 
   // deviceId 0 keeps the engine's "controller connected" gate set (!= -1)
-  g.controllerSetData(fake_env, FUSION_OBJ, 0, mask, lx, ly);
-
-  // Minus -> back/menu (rising edge)
-  const u64 changed = down ^ pad_prev;
-  if ((changed & HidNpadButton_Minus) && (down & HidNpadButton_Minus))
-    g.backButtonPressed(fake_env, FUSION_OBJ);
-  pad_prev = down;
+  g.controllerSetData(fake_env, FUSION_OBJ, 0, (int)frame.android_buttons,
+                      frame.android_x, frame.android_y);
 }
 
 #define MAX_TOUCHES 8

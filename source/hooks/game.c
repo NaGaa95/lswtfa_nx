@@ -1,6 +1,7 @@
 /* game.c -- binary patches/hooks on libProject_Douglas_HH.so (v2.2.1.06).
  *
- * All offsets here are version-specific (22106). Three patches:
+ * All offsets here are version-specific (22106). Patches:
+ *  - controller polling with both sticks and the Switch button layout,
  *  - the shader-preload busy-wait that deadlocks our single GL context,
  *  - the 0.75 render-scale constant (full-res scene),
  *  - the fnaFMV_* cutscene entry points (redirected to our ffmpeg player).
@@ -10,12 +11,14 @@
  */
 
 #include <stdint.h>
+#include <string.h>
 #include <switch.h>
 
 #include "../util.h"
 #include "../so_util.h"
 #include "../hooks.h"
 #include "../fmv.h"
+#include "../controller.h"
 
 extern so_module game_mod; // defined in main.c
 
@@ -46,7 +49,35 @@ static unsigned char PreLoadShadersDone_shim(void) {
   return g_real_preload_done ? g_real_preload_done() : 1;
 }
 
+static void install_controller_hook(void) {
+  const char *name = "_Z37fnaController_ProcessJoypadControllerP13fnINPUTDEVICE";
+  uintptr_t writable = so_try_find_addr(&game_mod, name);
+  uintptr_t original = so_try_find_addr_rx(&game_mod, name);
+  if (!writable || !original || *(const uint32_t *)writable != 0xb40018a0u) {
+    debugPrintf("patch_game: controller ABI differs; keeping Android input\n");
+    return;
+  }
+  tfa_controller_set_fallback((void (*)(void *))original);
+  unsigned patched = 0;
+  for (int i = 0; i < game_mod.elf_hdr->e_shnum; ++i) {
+    const Elf64_Shdr *section = &game_mod.sec_hdr[i];
+    if (section->sh_type != SHT_RELA) continue;
+    const Elf64_Rela *relocs = (const Elf64_Rela *)((uintptr_t)game_mod.load_base + section->sh_addr);
+    for (size_t j = 0; j < section->sh_size / sizeof(*relocs); ++j) {
+      unsigned type = ELF64_R_TYPE(relocs[j].r_info);
+      if (type != R_AARCH64_JUMP_SLOT && type != R_AARCH64_GLOB_DAT) continue;
+      const Elf64_Sym *symbol = &game_mod.syms[ELF64_R_SYM(relocs[j].r_info)];
+      if (strcmp(game_mod.dynstrtab + symbol->st_name, name)) continue;
+      uintptr_t *slot = (uintptr_t *)((uintptr_t)game_mod.load_base + relocs[j].r_offset);
+      *slot = (uintptr_t)tfa_controller_process + relocs[j].r_addend;
+      ++patched;
+    }
+  }
+  debugPrintf("patch_game: controller input slots patched: %u\n", patched);
+}
+
 void patch_game(void) {
+  install_controller_hook();
   // resolve the real getter at its runtime (RX) address; patch the PLT stub via
   // the writable load_base mirror (this runs before so_finalize maps it RX).
   g_real_preload_done =

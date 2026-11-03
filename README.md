@@ -42,6 +42,14 @@ The port reads `/switch/lswtfa/config.txt`, created on first run:
 * `screen_width` / `screen_height` — render resolution; `-1` auto-picks
   1280x720 handheld / 1920x1080 docked.
 
+### Controls
+
+The left stick and D-pad move the character; the right stick controls the camera.
+Plus pauses, and Minus is Select. Face buttons keep their physical positions:
+B is jump, Y is attack, X switches characters, and A is the context action.
+L/R, ZL/ZR and stick clicks use the game's corresponding shoulder, trigger and
+stick-button inputs.
+
 ### How to build
 
 Install the devkitPro Switch toolchain and portlibs:
