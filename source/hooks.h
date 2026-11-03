@@ -21,6 +21,7 @@
 
 // engine-level patches applied to the loaded libProject_Douglas_HH.so
 void patch_game(void);
+void patch_shop(void);
 
 // --- wrapper-owned EGL (egl.c) ---------------------------------------------
 // Bring up display + window surface + ES2 context against the default NWindow

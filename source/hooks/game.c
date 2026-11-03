@@ -2,6 +2,7 @@
  *
  * All offsets here are version-specific (22106). Patches:
  *  - controller polling with both sticks and the Switch button layout,
+ *  - offline Season Pass content through the game's pack updater,
  *  - the shader-preload busy-wait that deadlocks our single GL context,
  *  - the 0.75 render-scale constant (full-res scene),
  *  - the fnaFMV_* cutscene entry points (redirected to our ffmpeg player).
@@ -78,6 +79,7 @@ static void install_controller_hook(void) {
 
 void patch_game(void) {
   install_controller_hook();
+  patch_shop();
   // resolve the real getter at its runtime (RX) address; patch the PLT stub via
   // the writable load_base mirror (this runs before so_finalize maps it RX).
   g_real_preload_done =

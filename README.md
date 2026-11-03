@@ -42,6 +42,13 @@ The port reads `/switch/lswtfa/config.txt`, created on first run:
 * `screen_width` / `screen_height` — render resolution; `-1` auto-picks
   1280x720 handheld / 1920x1080 docked.
 
+The Season Pass is enabled locally, including the full game and all installed
+mission and character packs. This applies when creating or loading a save;
+Android billing is not required. Extract all three asset packs as described
+above. Stud shop characters, ships and red-brick extras are also unlocked
+without spending studs. Red-brick extras can be switched on individually in
+the shop. Missions follow the game's normal story progression.
+
 ### Controls
 
 The left stick and D-pad move the character; the right stick controls the camera.

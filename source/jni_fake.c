@@ -146,6 +146,9 @@ static const char *id_name(const FakeID *id) {
 
 static juint call_boolean(const char *name, va_list va) {
   (void)va;
+  // The offline shop has no Android billing query to wait for.
+  if (!strcmp(name, "FromNative_hasConnectionQueryCompleted"))
+    return 1;
   if (!strcmp(name, "IsMusicActive"))
     return 0; // no background music from the OS; let the game play its own
   // The frontend gates "Play"/new-game on a connectivity check and otherwise
